@@ -193,57 +193,15 @@ class ImageClassifier(Classifier):
         bottleneck[0].bias.data.fill_(0.1)
     
         super(ImageClassifier, self).__init__(backbone, num_classes, bottleneck, bottleneck_dim, **kwargs)
-
-        # self.bottleneck_common = nn.Sequential(
-        #     nn.Linear(bottleneck_dim, bottleneck_dim_common),
-        #     nn.BatchNorm1d(bottleneck_dim_common),
-        #     nn.LeakyReLU(),
-        #     nn.Linear(bottleneck_dim_common, bottleneck_dim_common),
-        #     nn.BatchNorm1d(bottleneck_dim_common),
-        #     nn.LeakyReLU(),
-        # )
-        # self.bottleneck_common[0].weight.data.normal_(0, 0.005)
-        # self.bottleneck_common[0].bias.data.fill_(0.1)
-
-        # self.head = nn.Linear(bottleneck_dim_common, num_classes)
         
     def forward(self, x: torch.Tensor, return_feature=False):
         f = self.pool_layer(self.backbone(x))
         f = self.bottleneck(f)
-        # f = F.normalize(f, p=2, dim=1)
         predictions = self.head(f)
         if return_feature == False:
             return predictions
         else:
             return predictions, f
-
-    # def get_parameters(self, base_lr=1.0):
-    #     params = [
-    #         {"params": self.backbone.parameters(), "lr": 0.1 * base_lr if self.finetune else 1.0 * base_lr},
-    #         {"params": self.bottleneck.parameters(), "lr": 1.0 * base_lr},
-    #         # {"params": self.bottleneck_common.parameters(), "lr": 1.0 * base_lr},
-    #         {"params": self.head.parameters(), "lr": 1.0 * base_lr},
-    #     ]
-
-    #     return params
-            
-    # def __init__(self, backbone: nn.Module, num_classes: int, bottleneck_dim=1024, **kwargs):
-    #     bottleneck = nn.Sequential(
-    #         nn.Linear(backbone.out_features, bottleneck_dim),
-    #         nn.BatchNorm1d(bottleneck_dim),
-    #         nn.ReLU(),
-    #         nn.Dropout(0.5)
-    #     )
-    #     bottleneck[0].weight.data.normal_(0, 0.005)
-    #     bottleneck[0].bias.data.fill_(0.1)
-    #     super(ImageClassifier, self).__init__(backbone, num_classes, bottleneck, bottleneck_dim, **kwargs)
-
-    # def forward(self, x: torch.Tensor):
-    #     f = self.pool_layer(self.backbone(x))
-    #     f = self.bottleneck(f)
-    #     # f = f / torch.norm(f, p=2, dim=1, keepdim=True)
-    #     predictions = self.head(f)
-    #     return predictions, f
 
 
 def get_cosine_scheduler_with_warmup(optimizer, T_max, num_cycles=7. / 16., num_warmup_steps=0,
@@ -368,6 +326,3 @@ def empirical_risk_minimization(labeled_train_iter, model, optimizer, lr_schedul
 
         if i % args.print_freq == 0:
             progress.display(i)
-
-def get_noise(num_classes: int, features: int):
-    return torch.normal(0, 1, (num_classes, features))

@@ -2,6 +2,8 @@
 
 This is the official implementation codes for Semi-Supervised Noise Adaptation (SSNA).
 
+This study introduces the Semi-Supervised Noise Adaptation (SSNA) problem, which exploits information from a noise domain to improve learning performance in the target domain. To tackle this challenge, we propose the NA framework, which simultaneously minimizes the empirical risks of the noise and target domains while mitigating the distributional discrepancy between them.
+
 ## Getting Started
 
 ### Datasets

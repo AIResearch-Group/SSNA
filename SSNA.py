@@ -194,11 +194,11 @@ def train(labeled_train_iter: ForeverDataIterator, unlabeled_train_iter: Forever
         m_s_predict = model.head(m_s)
         noise_cls_loss = F.cross_entropy(m_s_predict, m_s_labels)
 
-        # SSNA loss
+        # NA loss
         self_training_loss = self_training_criterion(y_u_strong, y_u_strong_feature, y_u, y_u_feature, y_l_strong, y_l_strong_feature, y_l, y_l_feature, labels_l, m_s, device, args.PAM)
 
         # Measure accuracy and record loss
-        loss = cls_loss + noise_cls_loss + args.trade_off_SSNA_training * self_training_loss
+        loss = cls_loss + noise_cls_loss + args.trade_off_NA_training * self_training_loss
 
         loss.backward()
 
@@ -283,9 +283,9 @@ if __name__ == '__main__':
                         help="where to save logs, checkpoints and debugging images")
     parser.add_argument("--phase", default='train', type=str, choices=['train', 'test'],
                         help="when phase is 'test', only test the model")
-    # SSNA parameters
-    parser.add_argument('--trade-off-SSNA-training', default=1, type=float,
-                        help='the trade-off hyper-parameter of SSNA loss')
+    # NA parameters
+    parser.add_argument('--trade-off-NA-training', default=1, type=float,
+                        help='the trade-off hyper-parameter of NA loss')
     parser.add_argument('--PAM', action='store_true', default=False,
                         help='PAM loss or PCM loss')
 

@@ -1,4 +1,4 @@
-# SSNA PAM
+# NA (PAM)
 # ======================================================================================================================
 # CIFAR 10
 CUDA_VISIBLE_DEVICES=0 python SSNA.py /data/SSL/cifar10 -d CIFAR10 --train-resizing 'cifar' --val-resizing 'cifar' \
@@ -22,7 +22,7 @@ CUDA_VISIBLE_DEVICES=0 python SSNA.py /data/SSL/caltech101 -d Caltech101 --num-s
   --lr 0.003 --finetune --seed 0 --log logs/ --trade-off-SSNA-training 10 --epochs 20 --PAM
 
 
-# SSNA PCM
+# NA (PCM)
 # ======================================================================================================================
 # CIFAR 10
 CUDA_VISIBLE_DEVICES=0 python SSNA.py /data/SSL/cifar10 -d CIFAR10 --train-resizing 'cifar' --val-resizing 'cifar' \
