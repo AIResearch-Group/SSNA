@@ -1,3 +1,7 @@
+"""
+@author: Baixu Chen
+@contact: cbx_99_hasta@outlook.com
+"""
 from typing import Optional, List, Dict
 import torch
 import torch.nn as nn
@@ -44,7 +48,7 @@ class ImportanceWeightModule(object):
             instance weight in shape :math:`(N, 1)`
         """
         weight = 1. - self.discriminator(feature)
-        weight = weight / weight.mean()
+        weight = weight / (weight.mean() + 1e-5)
         weight = weight.detach()
         return weight
 

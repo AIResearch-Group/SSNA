@@ -1,3 +1,7 @@
+"""
+@author: Yifei Ji
+@contact: jiyf990330@163.com
+"""
 import os
 from typing import Optional
 from .imagelist import ImageList
@@ -6,7 +10,7 @@ from ._util import download as download_data, check_exits
 
 class StanfordCars(ImageList):
     """`The Stanford Cars <https://ai.stanford.edu/~jkrause/cars/car_dataset.html>`_ \
-      \
+    contains 16,185 images of 196 classes of cars. \
     Each category has been split roughly in a 50-50 split. \
     There are 8,144 images for training and 8,041 images for testing.
 
@@ -33,9 +37,9 @@ class StanfordCars(ImageList):
                 test.txt
     """
     download_list = [
-        ("image_list", "image_list.zip", "https://cloud.tsinghua.edu.cn/f/fd3c98c6b6734eaf83dd/?dl=1"),
-        ("train", "train.tgz", "https://cloud.tsinghua.edu.cn/f/0d08c6c7746f45e08e96/?dl=1"),
-        ("test", "test.tgz", "https://cloud.tsinghua.edu.cn/f/154aa99e32e441d38e71/?dl=1"),
+        ("image_list", "image_list.zip", "https://cloud.tsinghua.edu.cn/f/aeeb690e9886442aa267/?dl=1"),
+        ("train", "train.tgz", "https://cloud.tsinghua.edu.cn/f/fd80c30c120a42a08fd3/?dl=1"),
+        ("test", "test.tgz", "https://cloud.tsinghua.edu.cn/f/01e6b279f20440cb8bf9/?dl=1"),
     ]
     image_list = {
         "train": "image_list/train_100.txt",

@@ -193,15 +193,38 @@ class ImageClassifier(Classifier):
         bottleneck[0].bias.data.fill_(0.1)
     
         super(ImageClassifier, self).__init__(backbone, num_classes, bottleneck, bottleneck_dim, **kwargs)
-        
-    def forward(self, x: torch.Tensor, return_feature=False):
-        f = self.pool_layer(self.backbone(x))
-        f = self.bottleneck(f)
+        self.bottleneck_N = nn.Sequential(
+            nn.Linear(bottleneck_dim, bottleneck_dim),
+            nn.BatchNorm1d(bottleneck_dim),
+            nn.ReLU(),
+            nn.Dropout(0.5)
+        )
+        self.bottleneck_N[0].weight.data.normal_(0, 0.005)
+        self.bottleneck_N[0].bias.data.fill_(0.1)
+
+    def forward(self, x: torch.Tensor, noise=False, return_feature=False):
+        if noise:
+            f = self.bottleneck_N(x)
+        else:
+            f = self.pool_layer(self.backbone(x))
+            f = self.bottleneck(f)
         predictions = self.head(f)
+        
         if return_feature == False:
             return predictions
         else:
             return predictions, f
+        
+
+    def get_parameters(self, base_lr=1.0):
+        params = [
+            {"params": self.backbone.parameters(), "lr": 0.1 * base_lr if self.finetune else 1.0 * base_lr},
+            {"params": self.bottleneck.parameters(), "lr": 1.0 * base_lr},
+            {"params": self.bottleneck_N.parameters(), "lr": 1.0 * base_lr},
+            {"params": self.head.parameters(), "lr": 1.0 * base_lr},
+        ]
+
+        return params
 
 
 def get_cosine_scheduler_with_warmup(optimizer, T_max, num_cycles=7. / 16., num_warmup_steps=0,
@@ -231,7 +254,7 @@ def get_cosine_scheduler_with_warmup(optimizer, T_max, num_cycles=7. / 16., num_
     return LambdaLR(optimizer, _lr_lambda, last_epoch)
 
 
-def validate(val_loader, model, args, device, num_classes):
+def validate(val_loader, model, args, device):
     batch_time = AverageMeter('Time', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
     top1 = AverageMeter('Acc@1', ':6.2f')
@@ -243,7 +266,7 @@ def validate(val_loader, model, args, device, num_classes):
 
     # switch to evaluate mode
     model.eval()
-    confmat = ConfusionMatrix(num_classes)
+    confmat = ConfusionMatrix(args.num_classes)
 
     with torch.no_grad():
         end = time.time()

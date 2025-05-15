@@ -1,3 +1,7 @@
+"""
+@author: Junguang Jiang
+@contact: JiangJunguang1123@outlook.com
+"""
 from typing import Optional
 import os
 from .imagelist import ImageList
@@ -36,7 +40,7 @@ class ImageNetR(ImageList):
                 ...
     """
     download_list = [
-        ("image_list", "image_list.zip", "https://cloud.tsinghua.edu.cn/f/8066e6c5a8974be6a702/?dl=1"),
+        ("image_list", "image_list.zip", "https://cloud.tsinghua.edu.cn/f/7786eabd3565409c8c33/?dl=1"),
     ]
     image_list = {
         "IN": "image_list/imagenet-train.txt",

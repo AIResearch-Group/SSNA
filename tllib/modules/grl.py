@@ -1,3 +1,7 @@
+"""
+@author: Junguang Jiang
+@contact: JiangJunguang1123@outlook.com
+"""
 from typing import Optional, Any, Tuple
 import numpy as np
 import torch.nn as nn
@@ -64,7 +68,7 @@ class WarmStartGradientReverseLayer(nn.Module):
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         """"""
-        coeff = np.float64(
+        coeff = float(
             2.0 * (self.hi - self.lo) / (1.0 + np.exp(-self.alpha * self.iter_num / self.max_iters))
             - (self.hi - self.lo) + self.lo
         )

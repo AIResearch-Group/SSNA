@@ -1,4 +1,4 @@
-# Semi-Supervised Noise Adaptation
+# Semi-Supervised Noise Adaptation: Transferring Knowledge from a Noise Domain
 
 This is the official implementation codes for Semi-Supervised Noise Adaptation (SSNA).
 
@@ -50,4 +50,4 @@ You can use the following instruction to reproduce experiments with SSNA.
 bash SSNA.sh
 ```
 
-This script will automatically train ResNet-18 with NA (PAM) and NA (PCM) on CIFAR-10, CIFAR-100, DTD and Caltech-101. Detailed training logs will be saved in 'logs/'.
+This script will automatically train ResNet-18 with NAF on CIFAR-10, CIFAR-100, DTD and Caltech-101. Detailed training logs will be saved in 'logs/'.

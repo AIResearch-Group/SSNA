@@ -1,3 +1,7 @@
+"""
+@author: Baixu Chen
+@contact: cbx_99_hasta@outlook.com
+"""
 import os
 from .imagelist import ImageList
 from ._util import download as download_data, check_exits
@@ -21,7 +25,7 @@ class SUN397(ImageList):
     """
     dataset_url = ("SUN397", "SUN397.tar.gz", "http://vision.princeton.edu/projects/2010/SUN/SUN397.tar.gz")
     image_list_url = (
-        "SUN397/image_list", "image_list.zip", "https://cloud.tsinghua.edu.cn/f/17399c6e0455480aa174/?dl=1")
+        "SUN397/image_list", "image_list.zip", "https://cloud.tsinghua.edu.cn/f/dec0775147c144ea9f75/?dl=1")
 
     def __init__(self, root, split='train', download=True, **kwargs):
         if download:

@@ -1,3 +1,8 @@
+"""
+@author: Yong Liu
+@contact: liuyong1095556447@163.com
+"""
+
 import numpy as np
 
 __all__ = ['log_expected_empirical_prediction']

@@ -1,4 +1,7 @@
-
+"""
+@author: Junguang Jiang
+@contact: JiangJunguang1123@outlook.com
+"""
 import torch
 from typing import Optional, Callable, Tuple, Any, List, Sequence, Dict
 import numpy as np

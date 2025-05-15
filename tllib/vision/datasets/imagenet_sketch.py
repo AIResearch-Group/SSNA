@@ -1,3 +1,7 @@
+"""
+@author: Junguang Jiang
+@contact: JiangJunguang1123@outlook.com
+"""
 from typing import Optional
 import os
 from torchvision.datasets.imagenet import ImageNet
@@ -36,9 +40,8 @@ class ImageNetSketch(ImageList):
                 sketch.txt
                 ...
     """
-    # TODO
     download_list = [
-        ("image_list", "image_list.zip", "https://cloud.tsinghua.edu.cn/f/8e12fff7b6224e5fa62b/?dl=1"),
+        ("image_list", "image_list.zip", "https://cloud.tsinghua.edu.cn/f/7786eabd3565409c8c33/?dl=1"),
     ]
     image_list = {
         "IN": "image_list/imagenet-train.txt",

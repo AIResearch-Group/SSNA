@@ -1,4 +1,7 @@
-
+"""
+@author: Louis Fouquet
+@contact: louisfouquet75@gmail.com
+"""
 import numpy as np
 
 __all__ = ['transrate']

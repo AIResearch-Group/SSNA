@@ -10,10 +10,10 @@ import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from torch.optim import SGD
 from torch.optim.lr_scheduler import LambdaLR
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 
-import utils
+import utils_SSNA
 from tllib.self_training.noise_adaptation import Noise_Adaptation
 from tllib.vision.transforms import MultipleApply
 from tllib.utils.metric import accuracy
@@ -25,9 +25,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def main(args: argparse.Namespace):
-    log_path = args.log + args.data.lower() + "/seed_" + str(args.seed) + "/" + args.arch.lower()
-    print("Log path: " + log_path)
-    logger = CompleteLogger(log_path, args.phase)
+    logger = CompleteLogger(args.log, args.phase)
     print(args)
 
     if args.seed is not None:
@@ -43,19 +41,19 @@ def main(args: argparse.Namespace):
     cudnn.benchmark = False
 
     # Load data
-    weak_augment = utils.get_train_transform(args.train_resizing, random_horizontal_flip=True,
+    weak_augment = utils_SSNA.get_train_transform(args.train_resizing, random_horizontal_flip=True,
                                              norm_mean=args.norm_mean, norm_std=args.norm_std)
-    strong_augment = utils.get_train_transform(args.train_resizing, random_horizontal_flip=True,
+    strong_augment = utils_SSNA.get_train_transform(args.train_resizing, random_horizontal_flip=True,
                                                auto_augment=args.auto_augment,
                                                norm_mean=args.norm_mean, norm_std=args.norm_std)
     labeled_train_transform = MultipleApply([weak_augment, strong_augment])
     unlabeled_train_transform = MultipleApply([weak_augment, strong_augment])
-    val_transform = utils.get_val_transform(args.val_resizing, norm_mean=args.norm_mean, norm_std=args.norm_std)
+    val_transform = utils_SSNA.get_val_transform(args.val_resizing, norm_mean=args.norm_mean, norm_std=args.norm_std)
     print('labeled_train_transform: ', labeled_train_transform)
     print('unlabeled_train_transform: ', unlabeled_train_transform)
     print('val_transform:', val_transform)
     labeled_train_dataset, unlabeled_train_dataset, val_dataset = \
-        utils.get_dataset(args.data,
+        utils_SSNA.get_dataset(args.data,
                           args.num_samples_per_class,
                           args.root, labeled_train_transform,
                           val_transform,
@@ -75,20 +73,22 @@ def main(args: argparse.Namespace):
 
     # Create model
     print("=> using pre-trained model '{}'".format(args.arch))
-    backbone = utils.get_model(args.arch, pretrained_checkpoint=args.pretrained_backbone)
-    num_classes = labeled_train_dataset.num_classes
+    backbone = utils_SSNA.get_model(args.arch, pretrained_checkpoint=args.pretrained_backbone)
+    args.num_classes = labeled_train_dataset.num_classes
     pool_layer = nn.Identity() if args.no_pool else None
-    classifier = utils.ImageClassifier(backbone, num_classes, bottleneck_dim=args.bottleneck_dim, pool_layer=pool_layer,
+    classifier = utils_SSNA.ImageClassifier(backbone, args.num_classes, bottleneck_dim=args.bottleneck_dim, pool_layer=pool_layer,
                                        finetune=args.finetune).to(device)
     
     # Generate noise
     print("Generate noise")
-    mus = torch.randn([num_classes, args.bottleneck_dim])
-    mus = nn.Parameter(mus)
-    mus_labels = torch.arange(num_classes).reshape(-1)
 
-    
-    all_parameters = [{"params": mus}] + classifier.get_parameters()
+    ns_c = torch.normal(0, args.nsc_std, (args.num_classes, args.bottleneck_dim))
+    noise_samples, noise_labels = generate_noise_data(ns_c, args.noise_per_class)
+    noise_dataset = TensorDataset(noise_samples, noise_labels)
+    noise_dataloader = DataLoader(noise_dataset, batch_size=args.batch_size * 2, shuffle=True, num_workers=args.workers, drop_last=True)
+    noise_iter = ForeverDataIterator(noise_dataloader)
+
+    all_parameters = classifier.get_parameters()
 
     # Define optimizer and lr scheduler
     if args.lr_scheduler == 'exp':
@@ -96,13 +96,13 @@ def main(args: argparse.Namespace):
         lr_scheduler = LambdaLR(optimizer, lambda x: args.lr * (1. + args.lr_gamma * float(x)) ** (-args.lr_decay))
     else:
         optimizer = SGD(all_parameters, args.lr, momentum=0.9, weight_decay=args.wd, nesterov=True)
-        lr_scheduler = utils.get_cosine_scheduler_with_warmup(optimizer, args.epochs * args.iters_per_epoch)
+        lr_scheduler = utils_SSNA.get_cosine_scheduler_with_warmup(optimizer, args.epochs * args.iters_per_epoch)
 
 
     if args.phase == 'test':
         checkpoint = torch.load(logger.get_checkpoint_path('20'), map_location='cpu')
         classifier.load_state_dict(checkpoint)
-        acc1, avg = utils.validate(val_loader, classifier, args, device, num_classes)
+        acc1, avg = utils_SSNA.validate(val_loader, classifier, args, device)
         print(acc1)
         return
 
@@ -110,15 +110,17 @@ def main(args: argparse.Namespace):
     # Start training
     best_acc1 = 0.0
     best_avg = 0.0
+    m_h = torch.zeros((args.num_classes + 1, args.bottleneck_dim), device=device, requires_grad=False)
+    m_n_h = torch.zeros((args.num_classes + 1, args.bottleneck_dim), device=device, requires_grad=False)
     for epoch in range(args.epochs):
         # Print lr
         print(lr_scheduler.get_lr())
 
         # Train for one epoch
-        train(labeled_train_iter, unlabeled_train_iter, classifier, optimizer, lr_scheduler, epoch, args, mus, mus_labels)
+        m_h, m_n_h = train(labeled_train_iter, unlabeled_train_iter, noise_iter, classifier, optimizer, lr_scheduler, epoch, args, m_h, m_n_h)
 
         # Evaluate on validation set
-        acc1, avg = utils.validate(val_loader, classifier, args, device, num_classes)
+        acc1, avg = utils_SSNA.validate(val_loader, classifier, args, device)
 
         # Remember best acc@1 and save checkpoint
         if (epoch + 1) % 5 == 0:
@@ -133,12 +135,30 @@ def main(args: argparse.Namespace):
 
     print("best_acc1 = {:3.2f}".format(best_acc1))
     print('best_avg = {:3.2f}'.format(best_avg))
+
+    torch.save(noise_samples.cpu(), logger.get_checkpoint_path("noise_samples"))
+    torch.save(noise_labels.cpu(), logger.get_checkpoint_path("noise_labels"))
+
     logger.close()
 
+def generate_noise_data(mus, num_per_class:int):
+    '''
+    Generate noise data.
+    :param mus: means of the noise distribution. shape: [number_classes, dim]
+    :param num_per_class: the number of samples for each class to generate
+    :return: the generated data of the noise distribution, shape: [num_per_classes, num_classes, dim].
+    '''
+    num_classes, dim = mus.shape
 
+    mvn = torch.distributions.MultivariateNormal(torch.zeros(dim), covariance_matrix=torch.eye(dim))
+    samples = mvn.sample((num_classes, num_per_class)) + mus[:, None, :]
+    samples = samples.reshape(num_classes * num_per_class, dim)
+    labels = torch.arange(num_classes).repeat_interleave(num_per_class)
 
-def train(labeled_train_iter: ForeverDataIterator, unlabeled_train_iter: ForeverDataIterator, model, optimizer: SGD,
-          lr_scheduler: LambdaLR, epoch: int, args: argparse.Namespace, mus, mus_labels):
+    return samples, labels
+
+def train(labeled_train_iter: ForeverDataIterator, unlabeled_train_iter: ForeverDataIterator, noise_iter: ForeverDataIterator, model, optimizer: SGD,
+          lr_scheduler: LambdaLR, epoch: int, args: argparse.Namespace, m_h, m_n_h):
     batch_time = AverageMeter('Time', ':2.2f')
     data_time = AverageMeter('Data', ':2.1f')
     cls_losses = AverageMeter('Cls Loss', ':3.2f')
@@ -160,6 +180,7 @@ def train(labeled_train_iter: ForeverDataIterator, unlabeled_train_iter: Forever
     self_training_criterion = Noise_Adaptation()
     
     for i in range(args.iters_per_epoch):
+
         (x_l, x_l_strong), labels_l = next(labeled_train_iter)
         x_l = x_l.to(device)
         x_l_strong = x_l_strong.to(device)
@@ -169,6 +190,12 @@ def train(labeled_train_iter: ForeverDataIterator, unlabeled_train_iter: Forever
         x_u = x_u.to(device)
         x_u_strong = x_u_strong.to(device)
         labels_u = labels_u.to(device)
+
+        # Prepare for noise
+        noise, noise_label = next(noise_iter)
+        noise = noise.to(device)
+        noise_label = noise_label.to(device)
+        
 
         # Measure data loading time
         data_time.update(time.time() - end)
@@ -185,17 +212,13 @@ def train(labeled_train_iter: ForeverDataIterator, unlabeled_train_iter: Forever
         # Prepare for unlabeled data
         y_u, y_u_feature = model(x_u, return_feature=True)
         y_u_strong, y_u_strong_feature = model(x_u_strong, return_feature=True)
-        
-        # Prepare for noise
-        m_s = mus.to(device) # (C, D)
-        m_s_labels = mus_labels.to(device)
 
         # Cross entropy loss
-        m_s_predict = model.head(m_s)
-        noise_cls_loss = F.cross_entropy(m_s_predict, m_s_labels)
+        noise_pred, noise_feature = model(noise, noise=True, return_feature=True)
+        noise_cls_loss = args.trade_off_noise_supervised * F.cross_entropy(noise_pred, noise_label)
 
         # NA loss
-        self_training_loss = self_training_criterion(y_u_strong, y_u_strong_feature, y_u, y_u_feature, y_l_strong, y_l_strong_feature, y_l, y_l_feature, labels_l, m_s, device, args.PAM)
+        self_training_loss, m_h, m_n_h = self_training_criterion(y_u_strong, y_u_strong_feature, y_u, y_u_feature, y_l_strong, y_l_strong_feature, y_l, y_l_feature, labels_l, noise_feature, noise_label, m_h, m_n_h, args.alpha, device)
 
         # Measure accuracy and record loss
         loss = cls_loss + noise_cls_loss + args.trade_off_NA_training * self_training_loss
@@ -206,7 +229,7 @@ def train(labeled_train_iter: ForeverDataIterator, unlabeled_train_iter: Forever
         cls_losses.update(cls_loss.item(), batch_size)
         self_training_losses.update(self_training_loss.item(), batch_size)
 
-        noise_acc = accuracy(m_s_predict, m_s_labels)[0]
+        noise_acc = accuracy(noise_pred, noise_label)[0]
         noise_accs.update(noise_acc.item())
         cls_acc = accuracy(y_l, labels_l)[0]
         cls_accs.update(cls_acc.item(), batch_size)
@@ -222,6 +245,8 @@ def train(labeled_train_iter: ForeverDataIterator, unlabeled_train_iter: Forever
         if i % args.print_freq == 0:
             progress.display(i)
 
+    return m_h, m_n_h
+
 
 
 
@@ -231,7 +256,7 @@ if __name__ == '__main__':
     parser.add_argument('root', metavar='DIR',
                         help='root path of dataset')
     parser.add_argument('-d', '--data', metavar='DATA',
-                        help='dataset: ' + ' | '.join(utils.get_dataset_names()))
+                        help='dataset: ' + ' | '.join(utils_SSNA.get_dataset_names()))
     parser.add_argument('--num-samples-per-class', default=4, type=int,
                         help='number of labeled samples per class (default: 4)')
     parser.add_argument('--train-resizing', default='default', type=str)
@@ -243,8 +268,8 @@ if __name__ == '__main__':
     parser.add_argument('--auto-augment', default='rand-m10-n2-mstd2', type=str,
                         help='AutoAugment policy (default: rand-m10-n2-mstd2)')
     # Model parameters
-    parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18', choices=utils.get_model_names(),
-                        help='backbone architecture: ' + ' | '.join(utils.get_model_names()) + ' (default: resnet18)')
+    parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18', choices=utils_SSNA.get_model_names(),
+                        help='backbone architecture: ' + ' | '.join(utils_SSNA.get_model_names()) + ' (default: resnet18)')
     parser.add_argument('--bottleneck-dim', default=1024, type=int,
                         help='dimension of bottleneck (default: 1024)')
     parser.add_argument('--no-pool', action='store_true', default=False,
@@ -259,11 +284,11 @@ if __name__ == '__main__':
                         help='the trade-off hyper-parameter of cls loss on strong augmented labeled data')
     parser.add_argument('-b', '--batch-size', default=32, type=int, metavar='N',
                         help='mini-batch size (default: 32)')
-    parser.add_argument('--lr', '--learning-rate', default=0.03, type=float, metavar='LR', dest='lr',
+    parser.add_argument('--lr', '--learning-rate', default=0.003, type=float, metavar='LR', dest='lr',
                         help='initial learning rate')
     parser.add_argument('--lr-scheduler', default='exp', type=str, choices=['exp', 'cos'],
                         help='learning rate decay strategy')
-    parser.add_argument('--lr-gamma', default=0.001, type=float,
+    parser.add_argument('--lr-gamma', default=0.0004, type=float,
                         help='parameter for lr scheduler')
     parser.add_argument('--lr-decay', default=0.75, type=float,
                         help='parameter for lr scheduler')
@@ -279,15 +304,21 @@ if __name__ == '__main__':
                         help='print frequency (default: 100)')
     parser.add_argument('--seed', default=None, type=int,
                         help='seed for initializing training ')
-    parser.add_argument("--log", default='ERM', type=str,
+    parser.add_argument("--log", default='NA', type=str,
                         help="where to save logs, checkpoints and debugging images")
     parser.add_argument("--phase", default='train', type=str, choices=['train', 'test'],
                         help="when phase is 'test', only test the model")
     # NA parameters
+    parser.add_argument('--noise-per-class', default=50, type=int,
+                        help='number of noise sample per class (default: 50)')
     parser.add_argument('--trade-off-NA-training', default=1, type=float,
                         help='the trade-off hyper-parameter of NA loss')
-    parser.add_argument('--PAM', action='store_true', default=False,
-                        help='PAM loss or PCM loss')
+    parser.add_argument('--trade-off-noise-supervised', default=1, type=float,
+                        help='the trade-off hyper-parameter of noise sample CE loss')
+    parser.add_argument('--alpha', default=0.7, type=float,
+                        help='the trade-off hyper-parameter for NA current prototype percentage')
+    parser.add_argument('--nsc-std', default=1, type=float,
+                        help='std for noise centroids')
 
     args = parser.parse_args()
     main(args)

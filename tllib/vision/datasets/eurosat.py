@@ -1,3 +1,7 @@
+"""
+@author: Junguang Jiang
+@contact: JiangJunguang1123@outlook.com
+"""
 import os
 from .imagelist import ImageList
 from ._util import download as download_data, check_exits
