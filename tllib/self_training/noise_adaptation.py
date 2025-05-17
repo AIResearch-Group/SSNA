@@ -18,8 +18,8 @@ class Noise_Adaptation(nn.Module):
         m_t_l = (all_y_l_one_hot_labels.T @ all_y_l_features) # (C, D)
         count_m_t_l = all_y_l_one_hot_labels.sum(dim=0) # (C)
 
-        all_y_u = torch.cat([y_u, y_u_strong])#[mask]
-        all_y_u_features = torch.cat([y_u_feature, y_u_strong_feature])#[mask]
+        all_y_u = torch.cat([y_u, y_u_strong])
+        all_y_u_features = torch.cat([y_u_feature, y_u_strong_feature])
         all_y_u_softmax = nn.Softmax(dim=1)(all_y_u) # (B * 2, C)
         pred_labels = torch.argmax(all_y_u_softmax, dim=1)
         all_y_u_one_hot_labels = torch.eye(num_classes)[pred_labels].to(device) # (B * 2 , C)
@@ -31,7 +31,7 @@ class Noise_Adaptation(nn.Module):
         m_t_c = torch.cat([m_t_c, torch.cat([all_y_l_features, all_y_u_features]).mean(dim=0, keepdim=True)], dim=0)
         
         m_h = alpha * m_t_c + (1. - alpha) * m_h.detach()
-        m_t_c = F.normalize(m_h, p=2, dim=1)
+        m_t_c = F.normalize(m_h, p=2, dim=1) # Apply L2 normalization to the m_t_c to enable cosine similarity computation (equivalent to L2 distance for unit vectors)
 
         all_noise_label = noise_label.to("cpu")
         all_noise_one_hot_labels = torch.eye(num_classes)[all_noise_label].to(device)  #(B , C)
