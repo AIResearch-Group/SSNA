@@ -51,3 +51,15 @@ bash SSNA.sh
 ```
 
 This script will automatically train ResNet-18 with NAF on CIFAR-10, CIFAR-100, DTD and Caltech-101. Detailed training logs will be saved in 'logs/'.
+
+## Citation
+
+If you find this work helpful, please consider citing:
+```
+@inproceedings{yao2026ssna,
+  title     = {Semi-Supervised Noise Adaptation: Transferring Knowledge from Noise Domain},
+  author    = {Yao, Yuan and Song, Jin and Li, Huixia and Yuan, Tongtong and Wu, Jiaqi and Zhang, Yu},
+  booktitle = {Proceedings of the 43rd International Conference on Machine Learning},
+  year      = {2026}
+}
+```
