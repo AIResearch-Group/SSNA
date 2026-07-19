@@ -4,6 +4,8 @@ This is the official implementation codes for Noise Adaptation Framework (NAF).
 
 This study introduces the Semi-Supervised Noise Adaptation (SSNA) problem, which exploits information from a noise domain to improve learning performance in the target domain. To tackle this challenge, we propose the NA framework, which simultaneously minimizes the empirical risks of the noise and target domains while mitigating the distributional discrepancy between them.
 
+Paper is now available online: https://arxiv.org/abs/2606.00558
+
 ## Getting Started
 
 ### Datasets
